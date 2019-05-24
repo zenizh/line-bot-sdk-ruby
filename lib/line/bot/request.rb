@@ -20,7 +20,7 @@ require 'uri'
 module Line
   module Bot
     class Request
-      attr_accessor :endpoint, :endpoint_path, :credentials, :to, :reply_token, :messages, :httpclient, :payload, :file
+      attr_accessor :endpoint, :endpoint_path, :credentials, :to, :reply_token, :messages, :httpclient, :payload, :file, :content_type
 
       # Initializes a new Request
       #
@@ -45,7 +45,9 @@ module Line
       # @return [Hash]
       def header
         content_type =
-          if file.is_a? File
+          if !@content_type.nil?
+            @content_type
+          elsif file.is_a? File
             case file.path
             when /\.png\z/i then 'image/png'
             when /\.jpe?g\z/i then 'image/jpeg'
@@ -60,7 +62,7 @@ module Line
           'Content-Type' => content_type,
           'User-Agent' => "LINE-BotSDK-Ruby/#{Line::Bot::API::VERSION}",
         }
-        hash = credentials.inject({}) { |h, (k, v)| h[k] = v.to_s; h }
+        hash = (credentials || {}).inject({}) { |h, (k, v)| h[k] = v.to_s; h }
 
         header.merge(hash)
       end

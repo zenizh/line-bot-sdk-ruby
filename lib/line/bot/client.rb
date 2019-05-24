@@ -420,6 +420,36 @@ module Line
         post(endpoint_path)
       end
 
+      def issue_access_token(channel_id)
+        request = Request.new do |config|
+          config.httpclient     = httpclient
+          config.endpoint       = endpoint
+          config.endpoint_path  = '/oauth/accessToken'
+          config.content_type   = 'application/x-www-form-urlencoded'
+          config.payload        = URI.encode_www_form([
+            ['grant_type', 'client_credentials'],
+            ['client_id', channel_id],
+            ['client_secret', @channel_secret],
+          ])
+        end
+
+        request.post
+      end
+
+      def revoke_access_token(channel_token)
+        request = Request.new do |config|
+          config.httpclient     = httpclient
+          config.endpoint       = endpoint
+          config.endpoint_path  = '/oauth/revoke'
+          config.content_type   = 'application/x-www-form-urlencoded'
+          config.payload        = URI.encode_www_form([
+            ['access_token', channel_token],
+          ])
+        end
+
+        request.post
+      end
+
       # Fetch data, get content of specified URL.
       #
       # @param endpoint_path [String]
