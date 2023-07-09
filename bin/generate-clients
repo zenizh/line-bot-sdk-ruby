@@ -1,0 +1,29 @@
+#!/usr/bin/env ruby
+
+require_relative '../lib/line/client/version'
+
+clients = [
+  'channel-access-token',
+  'insight',
+  'liff',
+  'manage-audience',
+  'messaging-api',
+  'module-attach',
+  'module',
+  'shop',
+  'webhook'
+]
+
+def to_pascal_case(str)
+  str.split('-').map(&:capitalize).join
+end
+
+clients.each do |client|
+  system "openapi-generator generate \
+    -i https://raw.githubusercontent.com/line/line-openapi/main/#{client}.yml \
+    -g ruby \
+    -t src/main/resources/ruby-client \
+    -o ./lib/clients/#{client} \
+    --additional-properties=moduleName=LINE::Client::#{to_pascal_case(client)} \
+    --http-user-agent LINE-BotSDK-Ruby/#{LINE::Client::VERSION}"
+end
