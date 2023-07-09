@@ -11,5 +11,5 @@ OpenAPI Generator version: 6.6.0
 =end
 
 module LINE::Client::Liff
-  VERSION = '1.0.0'
+  VERSION = '2.0.0'
 end

@@ -31,7 +31,7 @@ module LINE::Client::ModuleAttach
     # @option config [Configuration] Configuration for initializing the object, default to Configuration.default
     def initialize(config = Configuration.default)
       @config = config
-      @user_agent = "OpenAPI-Generator/#{VERSION}/ruby"
+      @user_agent = "LINE-BotSDK-Ruby/2.0.0"
       @default_headers = {
         'Content-Type' => 'application/json',
         'User-Agent' => @user_agent

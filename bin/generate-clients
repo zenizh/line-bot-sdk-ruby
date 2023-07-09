@@ -25,5 +25,6 @@ clients.each do |client|
     -t src/main/resources/ruby-client \
     -o ./lib/clients/#{client} \
     --additional-properties=moduleName=LINE::Client::#{to_pascal_case(client)} \
+    --additional-properties=gemVersion=#{LINE::Client::VERSION} \
     --http-user-agent LINE-BotSDK-Ruby/#{LINE::Client::VERSION}"
 end
