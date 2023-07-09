@@ -20,10 +20,10 @@ end
 
 clients.each do |client|
   system "openapi-generator generate \
-    -i https://raw.githubusercontent.com/line/line-openapi/main/#{client}.yml \
+    -i line-openapi/#{client}.yml \
     -g ruby \
     -t src/main/resources/ruby-client \
-    -o ./lib/clients/#{client} \
+    -o lib/clients/#{client} \
     --additional-properties=moduleName=LINE::Client::#{to_pascal_case(client)} \
     --additional-properties=gemVersion=#{LINE::Client::VERSION} \
     --http-user-agent LINE-BotSDK-Ruby/#{LINE::Client::VERSION}"
