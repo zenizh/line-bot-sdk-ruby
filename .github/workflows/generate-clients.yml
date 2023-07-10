@@ -20,8 +20,8 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "2.7"
-      - run: echo "OPENAPI_GENERATOR_VERSION=6.6.0 >> $GITHUB_ENV"
-      - run: echo "GEM_VERSION=${{ inputs.version }} >> $GITHUB_ENV"
+      - run: echo "OPENAPI_GENERATOR_VERSION=6.6.0" >> $GITHUB_ENV
+      - run: echo "GEM_VERSION=${{ inputs.version }}" >> $GITHUB_ENV
       - uses: actions/cache@v3
         id: openapi-generator
         env:
