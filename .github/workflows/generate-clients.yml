@@ -42,10 +42,10 @@ jobs:
       - run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git checkout -b generate-clients-v$VERSION
+          git checkout -b generate-clients-v$GEM_VERSION
           git add .
-          git commit -m "Generate clients: v$VERSION"
-          git push origin generate-clients-v$VERSION
-          gh pr create -B ${{ github.ref_name }} --title "Generate clients: v$VERSION" --body "" --label "auto-generated code"
+          git commit -m "Generate clients: v$GEM_VERSION"
+          git push origin generate-clients-v$GEM_VERSION
+          gh pr create -B ${{ github.ref_name }} --title "Generate clients: v$GEM_VERSION" --body "" --label "auto-generated code"
         env:
           GH_TOEKN: ${{ secrets.GITHUB_TOKEN }}
