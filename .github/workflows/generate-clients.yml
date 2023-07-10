@@ -36,8 +36,6 @@ jobs:
           chmod u+x ~/bin/openapitools/openapi-generator-cli
           export PATH=$PATH:~/bin/openapitools/
       - run: bin/generate-clients
-        env:
-          GEM_VERSION: ${{ env.GEM_VERSION }}
       - run: sed -i -r "s/[0-9]+\.[0-9]+\.[0-9]+/${{ env.GEM_VERSION }}/" lib/line/client/version.rb
       - run: |
           git config user.name github-actions
@@ -48,4 +46,4 @@ jobs:
           git push origin generate-clients-v$GEM_VERSION
           gh pr create -B ${{ github.ref_name }} --title "Generate clients: v$GEM_VERSION" --body "" --label "auto-generated code"
         env:
-          GH_TOEKN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
