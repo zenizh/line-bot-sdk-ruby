@@ -6,7 +6,7 @@ on:
       version:
         type: string
         required: true
-        description: 'Version'
+        description: "Version"
 
 jobs:
   build:
@@ -36,6 +36,8 @@ jobs:
           chmod u+x ~/bin/openapitools/openapi-generator-cli
           export PATH=$PATH:~/bin/openapitools/
       - run: bin/generate-clients
+        env:
+          VERSION: ${{ env.GEM_VERSION }}
       - run: sed -i -r "s/[0-9]+\.[0-9]+\.[0-9]+/${{ env.GEM_VERSION }}/" lib/line/client/version.rb
       - run: |
           git config user.name github-actions
