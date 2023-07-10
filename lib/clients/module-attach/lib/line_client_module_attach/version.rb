@@ -11,5 +11,5 @@ OpenAPI Generator version: 6.6.0
 =end
 
 module LINE::Client::ModuleAttach
-  VERSION = '2.0.0'
+  VERSION = '2.0.7'
 end
