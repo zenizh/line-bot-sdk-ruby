@@ -14,6 +14,6 @@
 
 module LINE
   module Client
-    VERSION = '2.0.0'
+    VERSION = ''
   end
 end
