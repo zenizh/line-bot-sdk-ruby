@@ -19,12 +19,12 @@ def to_pascal_case(str)
 end
 
 clients.each do |client|
-  system "openapi-generator generate \
+  system "openapi-generator-cli generate \
     -i line-openapi/#{client}.yml \
     -g ruby \
     -t src/main/resources/ruby-client \
     -o lib/clients/#{client} \
     --additional-properties=moduleName=LINE::Client::#{to_pascal_case(client)} \
-    --additional-properties=gemVersion=#{LINE::Client::VERSION} \
-    --http-user-agent LINE-BotSDK-Ruby/#{LINE::Client::VERSION}"
+    --additional-properties=gemVersion=#{ENV.fetch('GEM_VERSION')} \
+    --http-user-agent LINE-BotSDK-Ruby/#{ENV.fetch('GEM_VERSION')}"
 end
