@@ -23,13 +23,13 @@ jobs:
       - run: echo "OPENAPI_GENERATOR_VERSION=6.6.0" >> $GITHUB_ENV
       - run: echo "GEM_VERSION=${{ inputs.version }}" >> $GITHUB_ENV
       - uses: actions/cache@v3
-        id: openapi-generator
+        id: openapi-generator-cache
         env:
-          cache-name: openapi-generator
+          cache-name: openapi-generator-cache
         with:
           path: ~/bin/openapitools
           key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ env.OPENAPI_GENERATOR_VERSION }}
-      - if: steps.openapi-generator.outputs.cache-hit != 'true'
+      - if: steps.openapi-generator-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/bin/openapitools
           curl https://raw.githubusercontent.com/OpenAPITools/openapi-generator/master/bin/utils/openapi-generator-cli.sh > ~/bin/openapitools/openapi-generator-cli
