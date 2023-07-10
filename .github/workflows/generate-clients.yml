@@ -1,11 +1,12 @@
 name: Generate clients from LINE OpenAPI
 
-on: workflow_dispatch
-  inputs:
-    version:
-      type: string
-      required: true
-      description: 'Version'
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        type: string
+        required: true
+        description: 'Version'
 
 jobs:
   build:
