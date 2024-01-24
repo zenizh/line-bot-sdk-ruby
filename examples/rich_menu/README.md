@@ -4,7 +4,7 @@
 
 ## Getting started
 
-```ruby
+```bash
 $ export LINE_CHANNEL_SECRET=YOUR_CHANNEL_SECRET
 $ export LINE_CHANNEL_TOKEN=YOUR_CHANNEL_ACCESS_TOKEN
 $ bundle install

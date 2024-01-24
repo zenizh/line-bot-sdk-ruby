@@ -1,36 +1,49 @@
-require 'sinatra'   # gem 'sinatra'
-require 'line/bot'  # gem 'line-bot-api'
+require 'sinatra'
+require 'line-bot-api'
+
+before do
+  LINE::Client::MessagingApi.configure do |config|
+    config.access_token = ENV.fetch('LINE_CHANNEL_TOKEN')
+  end
+end
 
 def client
-  @client ||= Line::Bot::Client.new { |config|
-    config.channel_secret = ENV["LINE_CHANNEL_SECRET"]
-    config.channel_token = ENV["LINE_CHANNEL_TOKEN"]
-  }
+  LINE::Client::MessagingApi::MessagingApiApi.new
 end
 
 post '/callback' do
-  body = request.body.read
+  body           = request.body.read
+  signature      = request.env['HTTP_X_LINE_SIGNATURE']
+  channel_secret = ENV.fetch('LINE_CHANNEL_SECRET')
 
-  signature = request.env['HTTP_X_LINE_SIGNATURE']
-  unless client.validate_signature(body, signature)
-    halt 400, {'Content-Type' => 'text/plain'}, 'Bad Request'
+  unless LINE::Client::Webhook.validate_signature(body, signature, channel_secret)
+    halt 400
   end
 
-  events = client.parse_events_from(body)
+  events = LINE::Client::Webhook.parse_events_from(body)
 
   events.each do |event|
     case event
-    when Line::Bot::Event::Message
-      case event.type
-      when Line::Bot::Event::MessageType::Text
-        message = {
-          type: 'text',
-          text: event.message['text']
-        }
-        client.reply_message(event['replyToken'], message)
+    when LINE::Client::Webhook::MessageEvent
+      case event.message['type']
+      when 'text'
+        request = LINE::Client::MessagingApi::ReplyMessageRequest.new(
+          reply_token: event.reply_token,
+          messages: [
+            {
+              type: 'text',
+              text: event.message['text']
+            }
+          ]
+        )
+        begin
+          client.reply_message(request)
+        rescue LINE::Client::MessagingApi::ApiError => e
+          puts "Error when calling MessagingApiApi#reply_message: #{e}"
+        end
       end
     end
   end
 
-  "OK"
+  'OK'
 end

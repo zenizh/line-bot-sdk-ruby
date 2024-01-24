@@ -1,5 +1,5 @@
 require 'sinatra'   # gem 'sinatra'
-require 'line/bot'  # gem 'line-bot-api'
+require 'line-bot-api'
 
 THUMBNAIL_URL = 'https://via.placeholder.com/1024x1024'
 HORIZONTAL_THUMBNAIL_URL = 'https://via.placeholder.com/1024x768'
@@ -7,80 +7,91 @@ QUICK_REPLY_ICON_URL = 'https://via.placeholder.com/64x64'
 
 set :app_base_url, ENV['APP_BASE_URL']
 
-def client
-  @client ||= Line::Bot::Client.new do |config|
-    config.channel_id = ENV["LINE_CHANNEL_ID"]
-    config.channel_secret = ENV["LINE_CHANNEL_SECRET"]
-    config.channel_token = ENV["LINE_CHANNEL_TOKEN"]
-    config.http_options = {
-      open_timeout: 5,
-      read_timeout: 5,
-    }
+before do
+  LINE::Client::MessagingApi.configure do |config|
+    config.access_token = ENV.fetch('LINE_CHANNEL_TOKEN')
   end
+  LINE::Client::Insight.configure do |config|
+    config.access_token = ENV.fetch('LINE_CHANNEL_TOKEN')
+  end
+end
+
+channel_secret = ENV.fetch('LINE_CHANNEL_SECRET')
+
+def client
+  @client ||= LINE::Client::MessagingApi::MessagingApiApi.new
+end
+
+def blob_client
+  @blob_client ||= LINE::Client::MessagingApi::MessagingApiBlobApi.new
+end
+
+def insight_client
+  @insight_client ||= LINE::Client::Insight::InsightApi.new
 end
 
 def reply_text(event, texts)
   texts = [texts] if texts.is_a?(String)
-  client.reply_message(
-    event['replyToken'],
-    texts.map { |text| {type: 'text', text: text} }
-  )
+  client.reply_message(LINE::Client::MessagingApi::ReplyMessageRequest.new(
+    reply_token: event.reply_token,
+    messages: texts.map { |text| {type: 'text', text: text} }
+  ))
 end
 
 def broadcast(messages)
-  client.broadcast(messages)
+  client.broadcast_with_http_info(LINE::Client::MessagingApi::BroadcastRequest.new(
+    messages: messages
+  ))
 end
 
 def reply_content(event, messages)
-  res = client.reply_message(
-    event['replyToken'],
-    messages
-  )
-  logger.warn res.read_body unless Net::HTTPOK === res
-  res
+  client.reply_message(LINE::Client::MessagingApi::ReplyMessageRequest.new(
+    reply_token: event.reply_token,
+    messages: messages
+  ))
 end
 
 post '/callback' do
   body = request.body.read
 
   signature = request.env['HTTP_X_LINE_SIGNATURE']
-  unless client.validate_signature(body, signature)
-    halt 400, {'Content-Type' => 'text/plain'}, 'Bad Request'
+  unless LINE::Client::Webhook.validate_signature(body, signature, channel_secret)
+    halt 400
   end
 
-  events = client.parse_events_from(body)
+  events = LINE::Client::Webhook.parse_events_from(body)
 
   events.each do |event|
     case event
-    when Line::Bot::Event::Message
+    when LINE::Client::Webhook::MessageEvent
       handle_message(event)
 
-    when Line::Bot::Event::Follow
+    when LINE::Client::Webhook::FollowEvent
       reply_text(event, "[FOLLOW]\nThank you for following")
 
-    when Line::Bot::Event::Unfollow
+    when Line::Client::Webhook::UnfollowEvent
       logger.info "[UNFOLLOW]\n#{body}"
 
-    when Line::Bot::Event::Join
+    when Line::Client::Webhook::JoinEvent
       reply_text(event, "[JOIN]\n#{event['source']['type']}")
 
-    when Line::Bot::Event::Leave
+    when Line::Client::Webhook::LeaveEvent
       logger.info "[LEAVE]\n#{body}"
 
-    when Line::Bot::Event::Postback
+    when Line::Client::Webhook::PostbackEvent
       message = "[POSTBACK]\n#{event['postback']['data']} (#{JSON.generate(event['postback']['params'])})"
       reply_text(event, message)
 
-    when Line::Bot::Event::Beacon
+    when Line::Client::Webhook::BeaconEvent
       reply_text(event, "[BEACON]\n#{JSON.generate(event['beacon'])}")
 
-    when Line::Bot::Event::Things
+    when Line::Client::Webhook::ThingsEvent
       reply_text(event, "[THINGS]\n#{JSON.generate(event['things'])}")
 
-    when Line::Bot::Event::VideoPlayComplete
+    when Line::Client::Webhook::VideoPlayCompleteEvent
       reply_text(event, "[VIDEOPLAYCOMPLETE]\n#{JSON.generate(event['videoPlayComplete'])}")
 
-    when Line::Bot::Event::Unsend
+    when Line::Client::Webhook::UnsendEvent
       handle_unsend(event)
 
     else
@@ -92,51 +103,46 @@ post '/callback' do
 end
 
 def handle_message(event)
-  case event.type
-  when Line::Bot::Event::MessageType::Image
+  logger.info "Received message: #{event.message['type']}"
+
+  case event.message['type']
+  when 'image'
     message_id = event.message['id']
-    response = client.get_message_content(message_id)
-    tf = Tempfile.open("content")
-    tf.write(response.body)
-    reply_text(event, "[MessageType::IMAGE]\nid:#{message_id}\nreceived #{tf.size} bytes data")
-  when Line::Bot::Event::MessageType::Video
+    response = blob_client.get_message_content(message_id)
+    reply_text(event, "[MessageType::IMAGE]\nid:#{message_id}\nreceived #{response.size} bytes data")
+  when 'video'
     message_id = event.message['id']
-    response = client.get_message_content(message_id)
-    tf = Tempfile.open("content")
-    tf.write(response.body)
-    reply_text(event, "[MessageType::VIDEO]\nid:#{message_id}\nreceived #{tf.size} bytes data")
-  when Line::Bot::Event::MessageType::Audio
+    response = blob_client.get_message_content(message_id)
+    reply_text(event, "[MessageType::VIDEO]\nid:#{message_id}\nreceived #{response.size} bytes data")
+  when 'audio'
     message_id = event.message['id']
-    response = client.get_message_content(message_id)
+    response = blob_client.get_message_content(message_id)
     tf = Tempfile.open("content")
     tf.write(response.body)
     reply_text(event, "[MessageType::AUDIO]\nid:#{message_id}\nreceived #{tf.size} bytes data")
-  when Line::Bot::Event::MessageType::File
+  when 'file'
     message_id = event.message['id']
-    response = client.get_message_content(message_id)
-    tf = Tempfile.open("content")
-    tf.write(response.body)
-    reply_text(event, "[MessageType::FILE]\nid:#{message_id}\nfileName:#{event.message['fileName']}\nfileSize:#{event.message['fileSize']}\nreceived #{tf.size} bytes data")
-  when Line::Bot::Event::MessageType::Sticker
+    response = blob_client.get_message_content(message_id)
+    reply_text(event, "[MessageType::FILE]\nid:#{message_id}\nfileName:#{event.message['fileName']}\nfileSize:#{event.message['fileSize']}\nreceived #{response.size} bytes data")
+  when 'sticker'
     handle_sticker(event)
-  when Line::Bot::Event::MessageType::Location
+  when 'location'
     handle_location(event)
-  when Line::Bot::Event::MessageType::Text
+  when 'text'
     case event.message['text']
     when 'profile'
-      if event['source']['type'] == 'user'
-        profile = client.get_profile(event['source']['userId'])
-        profile = JSON.parse(profile.read_body)
+      if event.source['type'] == 'user'
+        profile = client.get_profile(event.source['user_id'])
         reply_text(event, [
-          "Display name\n#{profile['displayName']}",
-          "Status message\n#{profile['statusMessage']}"
+          "Display name\n#{profile.display_name}",
+          "Status message\n#{profile.status_message}"
         ])
       else
         reply_text(event, "Bot can't use profile API without user ID")
       end
 
     when 'emoji'
-      reply_content(event, {
+      reply_content(event, [{
         type: 'text',
         text: 'Look at this: $ It\'s a LINE emoji!',
         emojis: [
@@ -146,10 +152,10 @@ def handle_message(event)
               emojiId: '001'
           }
         ]
-      })
+      }])
 
     when 'buttons'
-      reply_content(event, {
+      reply_content(event, [{
         type: 'template',
         altText: 'Buttons alt text',
         template: {
@@ -164,10 +170,10 @@ def handle_message(event)
             { label: 'Send message', type: 'message', text: 'This is message' }
           ]
         }
-      })
+      }])
 
     when 'confirm'
-      reply_content(event, {
+      reply_content(event, [{
         type: 'template',
         altText: 'Confirm alt text',
         template: {
@@ -178,10 +184,10 @@ def handle_message(event)
             { label: 'No', type: 'message', text: 'No!' },
           ],
         }
-      })
+      }])
 
     when 'carousel'
-      reply_content(event, {
+      reply_content(event, [{
         type: 'template',
         altText: 'Carousel alt text',
         template: {
@@ -231,10 +237,10 @@ def handle_message(event)
             }
           ]
         }
-      })
+      }])
 
     when 'image carousel'
-      reply_content(event, {
+      reply_content(event, [{
         type: 'template',
         altText: 'Image carousel alt text',
         template: {
@@ -266,10 +272,10 @@ def handle_message(event)
             }
           ]
         }
-      })
+      }])
 
     when 'imagemap'
-      reply_content(event, {
+      reply_content(event, [{
         type: 'imagemap',
         baseUrl: THUMBNAIL_URL,
         altText: 'Imagemap alt text',
@@ -280,12 +286,12 @@ def handle_message(event)
           { area: { x: 0, y: 512, width: 512, height: 512 }, type: 'uri', linkUri: 'https://store.line.me/family/play/en' },
           { area: { x: 512, y: 512, width: 512, height: 512 }, type: 'message', text: 'Fortune!' },
         ]
-      })
+      }])
 
     when 'imagemap video'
       video_url = File.join(settings.app_base_url.to_s, 'imagemap/video.mp4')
       preview_url = File.join(settings.app_base_url.to_s, 'imagemap/preview.jpg')
-      reply_content(event, {
+      reply_content(event, [{
         type: 'imagemap',
         baseUrl: THUMBNAIL_URL,
         altText: 'Imagemap alt text',
@@ -310,10 +316,10 @@ def handle_message(event)
           { area: { x: 0, y: 512, width: 512, height: 512 }, type: 'uri', linkUri: 'https://store.line.me/family/play/en' },
           { area: { x: 512, y: 512, width: 512, height: 512 }, type: 'message', text: 'Fortune!' },
         ]
-      })
+      }])
 
     when 'flex'
-      reply_content(event, {
+      reply_content(event, [{
         type: "flex",
         altText: "this is a flex message",
         contents: {
@@ -357,10 +363,10 @@ def handle_message(event)
             ]
           }
         }
-      })
+      }])
 
     when 'flex carousel'
-      reply_content(event, {
+      reply_content(event, [{
         type: "flex",
         altText: "this is a flex carousel",
         contents: {
@@ -432,10 +438,10 @@ def handle_message(event)
             }
           ]
         }
-      })
+      }])
 
     when 'quickreply'
-      reply_content(event, {
+      reply_content(event, [{
         type: 'text',
         text: '[QUICK REPLY]',
         quickReply: {
@@ -503,61 +509,22 @@ def handle_message(event)
             },
           ],
         },
-      })
-
-    when 'flex1'
-      reply_content(event, {
-        "type": "bubble",
-        "size": "nano",
-        "hero": {
-          "type": "image",
-          "url": THUMBNAIL_URL,
-          "size": "full",
-          "aspectRatio": "4:3",
-          "action": {
-            "type": "uri",
-            "uri": "http://linecorp.com/"
-          }
-        },
-        "body": {
-          "type": "box",
-          "layout": "vertical",
-          "contents": [
-            {
-              "type": "text",
-              "text": "hello",
-              "contents": [
-                {
-                  "type": "span",
-                  "text": "hello",
-                  "color": "#FF0000"
-                },
-                {
-                  "type": "span",
-                  "text": "world",
-                  "color": "#0000FF"
-                }
-              ]
-            }
-          ],
-          "paddingAll": "10px"
-        },
-      })
+      }])
 
     when 'bye'
-      case event['source']['type']
+      case event.source['type']
       when 'user'
         reply_text(event, "[BYE]\nBot can't leave from 1:1 chat")
       when 'group'
         reply_text(event, "[BYE]\nLeaving group")
-        client.leave_group(event['source']['groupId'])
+        client.leave_group(event.source['group_id'])
       when 'room'
         reply_text(event, "[BYE]\nLeaving room")
-        client.leave_room(event['source']['roomId'])
+        client.leave_room(event.source['room_id'])
       end
 
     when 'stats'
-      response = broadcast({
+      data, status_code, headers = broadcast([{
         type: 'template',
         altText: 'stats',
         template: {
@@ -572,14 +539,15 @@ def handle_message(event)
             { label: 'Send message', type: 'message', text: 'This is message' }
           ]
         }
-      })
-      request_id = response.header["X-Line-Request-Id"]
+      }])
+      logger.info "data=#{data} status=#{status_code} headers=#{headers}"
+      request_id = headers["X-Line-Request-Id"]
       reply_text(event, "RequestId: #{request_id}")
 
     when /\Astats\s+(?<request_id>.+)/
       request_id = Regexp.last_match[:request_id]
-      stats = client.get_user_interaction_statistics(request_id)
-      reply_text(event, "[STATS]\n#{stats.body}")
+      stats = insight_client.get_message_event(request_id)
+      reply_text(event, "[STATS]\n#{stats}")
 
     else
       reply_text(event, "[ECHO]\n#{event.message['text']}")
@@ -593,17 +561,20 @@ end
 
 def handle_sticker(event)
   # Message API available stickers
-  # https://developers.line.me/media/messaging-api/sticker_list.pdf
-  msgapi_available = event.message['packageId'].to_i <= 4
+  # https://developers.line.biz/en/docs/messaging-api/sticker-list/
+  msgapi_available = [
+    446, 789, 1070, 6136, 6325, 6359, 6362, 6370,
+    6632, 8515, 8522, 8525, 11537, 11538, 11539
+  ].include?(event.message['package_id'].to_i)
   messages = [{
     type: 'text',
-    text: "[STICKER]\npackageId: #{event.message['packageId']}\nstickerId: #{event.message['stickerId']}"
+    text: "[STICKER]\npackageId: #{event.message['package_id']}\nstickerId: #{event.message['sticker_id']}"
   }]
   if msgapi_available
     messages.push(
       type: 'sticker',
-      packageId: event.message['packageId'],
-      stickerId: event.message['stickerId']
+      packageId: event.message['package_id'],
+      stickerId: event.message['sticker_id']
     )
   end
   reply_content(event, messages)
@@ -611,13 +582,13 @@ end
 
 def handle_location(event)
   message = event.message
-  reply_content(event, {
+  reply_content(event, [{
     type: 'location',
     title: message['title'] || message['address'],
     address: message['address'],
     latitude: message['latitude'],
     longitude: message['longitude']
-  })
+  }])
 end
 
 def handle_unsend(event)
